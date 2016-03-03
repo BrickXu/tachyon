@@ -129,6 +129,9 @@ public class ConfigurationTest {
         sDefaultConfiguration.getBytes(Constants.USER_BLOCK_REMOTE_READ_BUFFER_SIZE_BYTES);
     Assert.assertEquals(Constants.MB * 8, longBytesValue);
 
+    longBytesValue = sDefaultConfiguration.getBytes(Constants.THRIFT_FRAME_SIZE_BYTES_MAX);
+    Assert.assertEquals(Constants.MB * 64, longBytesValue);
+
     int maxTry = sDefaultConfiguration.getInt(Constants.ZOOKEEPER_LEADER_INQUIRY_RETRY_COUNT);
     Assert.assertEquals(10, maxTry);
   }
@@ -178,7 +181,7 @@ public class ConfigurationTest {
     Assert.assertEquals(Constants.SECOND_MS, intValue);
 
     intValue = sDefaultConfiguration.getInt(Constants.MASTER_WORKER_THREADS_MIN);
-    Assert.assertEquals(Runtime.getRuntime().availableProcessors(), intValue);
+    Assert.assertEquals(512, intValue);
 
     intValue = sDefaultConfiguration.getInt(Constants.MASTER_WORKER_TIMEOUT_MS);
     Assert.assertEquals(10 * Constants.SECOND_MS, intValue);
@@ -221,7 +224,7 @@ public class ConfigurationTest {
     Assert.assertEquals(Constants.SECOND_MS, intValue);
 
     intValue = sDefaultConfiguration.getInt(Constants.WORKER_WORKER_BLOCK_THREADS_MIN);
-    Assert.assertEquals(1, intValue);
+    Assert.assertEquals(256, intValue);
 
     intValue = sDefaultConfiguration.getInt(Constants.WORKER_SESSION_TIMEOUT_MS);
     Assert.assertEquals(10 * Constants.SECOND_MS, intValue);
