@@ -12,12 +12,13 @@
 package alluxio.web;
 
 import alluxio.AlluxioURI;
+import alluxio.Constants;
 import alluxio.exception.AccessControlException;
 import alluxio.exception.FileDoesNotExistException;
 import alluxio.master.AlluxioMaster;
 import alluxio.master.MasterContext;
 import alluxio.security.LoginUser;
-import alluxio.security.authentication.PlainSaslServer;
+import alluxio.security.authentication.AuthenticatedClientUser;
 import alluxio.util.SecurityUtils;
 import alluxio.wire.FileInfo;
 
@@ -63,11 +64,13 @@ public final class WebInterfaceMemoryServlet extends HttpServlet {
   public void doGet(HttpServletRequest request, HttpServletResponse response)
       throws ServletException, IOException {
     if (SecurityUtils.isSecurityEnabled(MasterContext.getConf())
-        && PlainSaslServer.AuthorizedClientUser.get(MasterContext.getConf()) == null) {
-      PlainSaslServer.AuthorizedClientUser.set(LoginUser.get(MasterContext.getConf()).getName());
+        && AuthenticatedClientUser.get(MasterContext.getConf()) == null) {
+      AuthenticatedClientUser.set(LoginUser.get(MasterContext.getConf()).getName());
     }
     request.setAttribute("masterNodeAddress", mMaster.getMasterAddress().toString());
     request.setAttribute("fatalError", "");
+    request.setAttribute("showPermissions",
+        MasterContext.getConf().getBoolean(Constants.SECURITY_AUTHORIZATION_PERMISSION_ENABLED));
 
     List<AlluxioURI> inMemoryFiles = mMaster.getFileSystemMaster().getInMemoryFiles();
     Collections.sort(inMemoryFiles);

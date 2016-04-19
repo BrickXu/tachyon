@@ -20,6 +20,7 @@ import alluxio.util.network.NetworkAddressUtils;
 import alluxio.util.network.NetworkAddressUtils.ServiceType;
 
 import com.google.common.base.Supplier;
+import org.powermock.reflect.Whitebox;
 
 import java.io.File;
 import java.io.IOException;
@@ -58,6 +59,7 @@ public final class LocalAlluxioMaster {
     mJournalFolder = configuration.get(Constants.MASTER_JOURNAL_FOLDER);
 
     mAlluxioMaster = AlluxioMaster.Factory.create();
+    Whitebox.setInternalState(AlluxioMaster.class, "sAlluxioMaster", mAlluxioMaster);
 
     // Reset the master port
     configuration.set(Constants.MASTER_RPC_PORT, Integer.toString(getRPCLocalPort()));
@@ -139,7 +141,7 @@ public final class LocalAlluxioMaster {
   }
 
   /**
-   * Kill the master thread, by calling {@link Thread#interrupt()}.
+   * Kills the master thread, by calling {@link Thread#interrupt()}.
    *
    * @throws Exception if master thread cannot be interrupted
    */

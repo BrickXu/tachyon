@@ -455,7 +455,7 @@ public final class NetworkAddressUtils {
       if (path.getPort() != -1) {
         authority += ":" + path.getPort();
       }
-      return new AlluxioURI(path.getScheme(), authority, path.getPath());
+      return new AlluxioURI(path.getScheme(), authority, path.getPath(), path.getQueryMap());
     }
     return path;
   }
@@ -478,7 +478,7 @@ public final class NetworkAddressUtils {
   }
 
   /**
-   * Get FQDN(Full Qualified Domain Name) from Java representations of network address, except
+   * Gets FQDN(Full Qualified Domain Name) from Java representations of network address, except
    * String representation which should be handled by {@link #resolveHostName(String)} which will
    * handle the situation where hostname is null.
    *
@@ -486,6 +486,7 @@ public final class NetworkAddressUtils {
    * @return the resolved FQDN host name
    */
   public static String getFqdnHost(InetSocketAddress addr) {
+    Preconditions.checkNotNull(addr.getAddress(), "the address of " + addr + " is invalid.");
     return addr.getAddress().getCanonicalHostName();
   }
 

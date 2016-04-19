@@ -38,7 +38,7 @@
     </dependency>
     <dependency>
       <groupId>org.alluxio</groupId>
-      <artifactId>alluxio-core-client-internal</artifactId>
+      <artifactId>alluxio-core-client</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -51,11 +51,16 @@
       <artifactId>alluxio-core-server</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <dependency>
+      <groupId>org.powermock</groupId>
+      <artifactId>powermock-reflect</artifactId>
+      <version>${powermock.version}</version>
+    </dependency>
 
     <!-- Other projects' test-jars -->
     <dependency>
       <groupId>org.alluxio</groupId>
-      <artifactId>alluxio-core-client-internal</artifactId>
+      <artifactId>alluxio-core-client</artifactId>
       <version>${project.version}</version>
       <type>test-jar</type>
     </dependency>

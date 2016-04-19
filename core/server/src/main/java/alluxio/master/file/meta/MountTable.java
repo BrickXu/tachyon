@@ -137,10 +137,8 @@ public final class MountTable {
   }
 
   /**
-   * Returns in indication of whether the given path is a mount point.
-   *
    * @param uri an Alluxio path URI
-   * @return mount point the given Alluxio path is nested under
+   * @return whether the given uri is a mount point
    */
   public synchronized boolean isMountPoint(AlluxioURI uri) {
     return mMountTable.containsKey(uri.getPath());
@@ -162,7 +160,8 @@ public final class MountTable {
     if (mountPoint != null) {
       AlluxioURI ufsPath = mMountTable.get(mountPoint).getUfsUri();
       return new AlluxioURI(ufsPath.getScheme(), ufsPath.getAuthority(),
-          PathUtils.concatPath(ufsPath.getPath(), path.substring(mountPoint.length())));
+          PathUtils.concatPath(ufsPath.getPath(), path.substring(mountPoint.length())),
+          ufsPath.getQueryMap());
     }
     return uri;
   }
