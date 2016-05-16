@@ -29,6 +29,7 @@ import alluxio.exception.FileDoesNotExistException;
 import alluxio.exception.InvalidPathException;
 import alluxio.master.file.FileSystemMaster;
 import alluxio.master.journal.Journal;
+import alluxio.master.journal.JournalWriter;
 import alluxio.master.journal.ReadWriteJournal;
 import alluxio.security.authentication.AuthenticatedClientUser;
 import alluxio.security.group.GroupMappingService;
@@ -38,13 +39,13 @@ import alluxio.util.io.PathUtils;
 import alluxio.wire.FileInfo;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -99,7 +100,7 @@ public class JournalIntegrationTest {
 
     long rootId = fsMaster.getFileId(mRootUri);
     Assert.assertTrue(rootId != IdUtils.INVALID_FILE_ID);
-    Assert.assertEquals(1, fsMaster.getFileInfoList(mRootUri).size());
+    Assert.assertEquals(1, fsMaster.getFileInfoList(mRootUri, false).size());
     long xyzId = fsMaster.getFileId(new AlluxioURI("/xyz"));
     Assert.assertTrue(xyzId != IdUtils.INVALID_FILE_ID);
     FileInfo fsMasterInfo = fsMaster.getFileInfo(xyzId);
@@ -108,6 +109,34 @@ public class JournalIntegrationTest {
     Assert.assertEquals(status.getBlockSizeBytes(), fsMasterInfo.getBlockSizeBytes());
     Assert.assertEquals(status.getLength(), fsMasterInfo.getLength());
     fsMaster.stop();
+  }
+
+  /**
+   * Tests flushing the journal multiple times, without writing any data.
+   */
+  @Test
+  public void multipleFlushTest() throws Exception {
+    // Set the max log size to 0 to force a flush to write a new file.
+    String existingMax = mMasterConfiguration.get(Constants.MASTER_JOURNAL_LOG_SIZE_BYTES_MAX);
+    mMasterConfiguration.set(Constants.MASTER_JOURNAL_LOG_SIZE_BYTES_MAX, "0");
+    try {
+      String journalFolder = mLocalAlluxioCluster.getMaster().getJournalFolder();
+      ReadWriteJournal journal = new ReadWriteJournal(
+          PathUtils.concatPath(journalFolder, Constants.FILE_SYSTEM_MASTER_NAME));
+      JournalWriter writer = journal.getNewWriter();
+      writer.getCheckpointOutputStream(0).close();
+      // Flush multiple times, without writing to the log.
+      writer.getEntryOutputStream().flush();
+      writer.getEntryOutputStream().flush();
+      writer.getEntryOutputStream().flush();
+      String[] paths = UnderFileSystem.get(journalFolder, mMasterConfiguration)
+          .list(journal.getCompletedDirectory());
+      // Make sure no new empty files were created.
+      Assert.assertTrue(paths == null || paths.length == 0);
+    } finally {
+      // Reset the max log size.
+      mMasterConfiguration.set(Constants.MASTER_JOURNAL_LOG_SIZE_BYTES_MAX, existingMax);
+    }
   }
 
   /**
@@ -133,7 +162,7 @@ public class JournalIntegrationTest {
 
     long rootId = fsMaster.getFileId(mRootUri);
     Assert.assertTrue(rootId != IdUtils.INVALID_FILE_ID);
-    Assert.assertEquals(1, fsMaster.getFileInfoList(mRootUri).size());
+    Assert.assertEquals(1, fsMaster.getFileInfoList(mRootUri, false).size());
     Assert.assertTrue(fsMaster.getFileId(new AlluxioURI("/xyz")) != IdUtils.INVALID_FILE_ID);
     FileInfo fsMasterInfo = fsMaster.getFileInfo(fsMaster.getFileId(new AlluxioURI("/xyz")));
     Assert.assertEquals(status, new URIStatus(fsMasterInfo));
@@ -202,7 +231,7 @@ public class JournalIntegrationTest {
     FileSystemMaster fsMaster = createFsMasterFromJournal();
     long rootId = fsMaster.getFileId(mRootUri);
     Assert.assertTrue(rootId != IdUtils.INVALID_FILE_ID);
-    Assert.assertEquals(5, fsMaster.getFileInfoList(mRootUri).size());
+    Assert.assertEquals(5, fsMaster.getFileInfoList(mRootUri, false).size());
     for (int i = 0; i < 5; i++) {
       for (int j = 0; j < 5; j++) {
         Assert.assertTrue(
@@ -218,7 +247,7 @@ public class JournalIntegrationTest {
     FileSystemMaster fsMaster = createFsMasterFromJournal();
     long rootId = fsMaster.getFileId(mRootUri);
     Assert.assertTrue(rootId != IdUtils.INVALID_FILE_ID);
-    Assert.assertEquals(0, fsMaster.getFileInfoList(mRootUri).size());
+    Assert.assertEquals(0, fsMaster.getFileInfoList(mRootUri, false).size());
     fsMaster.stop();
   }
 
@@ -244,7 +273,7 @@ public class JournalIntegrationTest {
     FileSystemMaster fsMaster = createFsMasterFromJournal();
     long rootId = fsMaster.getFileId(mRootUri);
     Assert.assertTrue(rootId != IdUtils.INVALID_FILE_ID);
-    Assert.assertEquals(10, fsMaster.getFileInfoList(mRootUri).size());
+    Assert.assertEquals(10, fsMaster.getFileInfoList(mRootUri, false).size());
     for (int i = 0; i < 10; i++) {
       for (int j = 0; j < 10; j++) {
         Assert.assertTrue(
@@ -274,7 +303,7 @@ public class JournalIntegrationTest {
     FileSystemMaster fsMaster = createFsMasterFromJournal();
     long rootId = fsMaster.getFileId(mRootUri);
     Assert.assertTrue(rootId != IdUtils.INVALID_FILE_ID);
-    Assert.assertEquals(1, fsMaster.getFileInfoList(mRootUri).size());
+    Assert.assertEquals(1, fsMaster.getFileInfoList(mRootUri, false).size());
     long fileId = fsMaster.getFileId(new AlluxioURI("/xyz"));
     Assert.assertTrue(fileId != IdUtils.INVALID_FILE_ID);
     Assert.assertEquals(status, new URIStatus(fsMaster.getFileInfo(fileId)));
@@ -349,7 +378,7 @@ public class JournalIntegrationTest {
     FileSystemMaster fsMaster = createFsMasterFromJournal();
     long rootId = fsMaster.getFileId(mRootUri);
     Assert.assertTrue(rootId != IdUtils.INVALID_FILE_ID);
-    Assert.assertEquals(1, fsMaster.getFileInfoList(mRootUri).size());
+    Assert.assertEquals(1, fsMaster.getFileInfoList(mRootUri, false).size());
     long fileId = fsMaster.getFileId(new AlluxioURI("/xyz"));
     Assert.assertTrue(fileId != IdUtils.INVALID_FILE_ID);
     Assert.assertEquals(status, new URIStatus(fsMaster.getFileInfo(fileId)));
@@ -374,7 +403,7 @@ public class JournalIntegrationTest {
       mFileSystem.createDirectory(new AlluxioURI(directory), options);
     }
 
-    Map<String, URIStatus> directoryStatuses = Maps.newHashMap();
+    Map<String, URIStatus> directoryStatuses = new HashMap<>();
     for (String directory : directories) {
       directoryStatuses.put(directory, mFileSystem.getStatus(new AlluxioURI(directory)));
     }
@@ -414,7 +443,7 @@ public class JournalIntegrationTest {
     FileSystemMaster fsMaster = createFsMasterFromJournal();
     long rootId = fsMaster.getFileId(mRootUri);
     Assert.assertTrue(rootId != IdUtils.INVALID_FILE_ID);
-    Assert.assertEquals(10, fsMaster.getFileInfoList(mRootUri).size());
+    Assert.assertEquals(10, fsMaster.getFileInfoList(mRootUri, false).size());
     for (int k = 0; k < 10; k++) {
       Assert.assertTrue(fsMaster.getFileId(new AlluxioURI("/a" + k)) != IdUtils.INVALID_FILE_ID);
     }
@@ -440,7 +469,7 @@ public class JournalIntegrationTest {
     FileSystemMaster fsMaster = createFsMasterFromJournal();
     long rootId = fsMaster.getFileId(mRootUri);
     Assert.assertTrue(rootId != IdUtils.INVALID_FILE_ID);
-    Assert.assertEquals(124, fsMaster.getFileInfoList(mRootUri).size());
+    Assert.assertEquals(124, fsMaster.getFileInfoList(mRootUri, false).size());
     for (int k = 0; k < 124; k++) {
       Assert.assertTrue(fsMaster.getFileId(new AlluxioURI("/a" + k)) != IdUtils.INVALID_FILE_ID);
     }
@@ -472,7 +501,7 @@ public class JournalIntegrationTest {
     FileSystemMaster fsMaster = createFsMasterFromJournal();
     long rootId = fsMaster.getFileId(mRootUri);
     Assert.assertTrue(rootId != IdUtils.INVALID_FILE_ID);
-    Assert.assertEquals(10, fsMaster.getFileInfoList(mRootUri).size());
+    Assert.assertEquals(10, fsMaster.getFileInfoList(mRootUri, false).size());
     for (int i = 0; i < 10; i++) {
       for (int j = 0; j < 10; j++) {
         Assert.assertTrue(
@@ -484,8 +513,8 @@ public class JournalIntegrationTest {
 
   private List<FileInfo> lsr(FileSystemMaster fsMaster, AlluxioURI uri)
       throws FileDoesNotExistException, InvalidPathException, AccessControlException {
-    List<FileInfo> files = fsMaster.getFileInfoList(uri);
-    List<FileInfo> ret = Lists.newArrayList(files);
+    List<FileInfo> files = fsMaster.getFileInfoList(uri, false);
+    List<FileInfo> ret = new ArrayList<>(files);
     for (FileInfo file : files) {
       ret.addAll(lsr(fsMaster, new AlluxioURI(file.getPath())));
     }

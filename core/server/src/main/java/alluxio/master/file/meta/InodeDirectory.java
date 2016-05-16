@@ -13,6 +13,8 @@ package alluxio.master.file.meta;
 
 import alluxio.Constants;
 import alluxio.collections.IndexedSet;
+import alluxio.master.MasterContext;
+import alluxio.master.file.options.CreateDirectoryOptions;
 import alluxio.proto.journal.File.InodeDirectoryEntry;
 import alluxio.proto.journal.Journal.JournalEntry;
 import alluxio.security.authorization.PermissionStatus;
@@ -49,12 +51,14 @@ public final class InodeDirectory extends Inode<InodeDirectory> {
 
   private boolean mMountPoint;
 
+  private boolean mDirectChildrenLoaded;
+
   /**
    * Creates a new instance of {@link InodeDirectory}.
    *
    * @param id the id to use
    */
-  public InodeDirectory(long id) {
+  private InodeDirectory(long id) {
     super(id);
     mDirectory = true;
     mMountPoint = false;
@@ -63,6 +67,8 @@ public final class InodeDirectory extends Inode<InodeDirectory> {
   private InodeDirectory(long id, long creationTimeMs) {
     this(id);
     mCreationTimeMs = creationTimeMs;
+
+    mDirectChildrenLoaded = false;
   }
 
   @Override
@@ -128,6 +134,13 @@ public final class InodeDirectory extends Inode<InodeDirectory> {
   }
 
   /**
+   * @return true if we have loaded all the direct children's metadata once
+   */
+  public synchronized boolean isDirectChildrenLoaded() {
+    return mDirectChildrenLoaded;
+  }
+
+  /**
    * Removes the given inode from the directory.
    *
    * @param child the Inode to remove
@@ -144,7 +157,7 @@ public final class InodeDirectory extends Inode<InodeDirectory> {
    * @return true if the inode was removed, false otherwise
    */
   public synchronized boolean removeChild(String name) {
-    return mChildren.removeByField(mNameIndex, name);
+    return mChildren.removeByField(mNameIndex, name) == 0;
   }
 
   /**
@@ -153,11 +166,20 @@ public final class InodeDirectory extends Inode<InodeDirectory> {
    */
   public synchronized InodeDirectory setMountPoint(boolean mountPoint) {
     mMountPoint = mountPoint;
-    return this;
+    return getThis();
   }
 
   /**
-   * Generates client file info for the folder.
+   * @param directChildrenLoaded whether to load the direct children if they were not loaded before
+   * @return the updated object
+   */
+  public synchronized InodeDirectory setDirectChildrenLoaded(boolean directChildrenLoaded) {
+    mDirectChildrenLoaded = directChildrenLoaded;
+    return getThis();
+  }
+
+  /**
+   * Generates client file info for a folder.
    *
    * @param path the path of the folder in the filesystem
    * @return the generated {@link FileInfo}
@@ -208,7 +230,29 @@ public final class InodeDirectory extends Inode<InodeDirectory> {
             .setPinned(entry.getPinned())
             .setLastModificationTimeMs(entry.getLastModificationTimeMs())
             .setPermissionStatus(permissionStatus)
-            .setMountPoint(entry.getMountPoint());
+            .setMountPoint(entry.getMountPoint())
+            .setDirectChildrenLoaded(entry.getDirectChildrenLoaded());
+    return inode;
+  }
+
+  /**
+   * Creates an {@link InodeDirectory}.
+   *
+   * @param id id of this inode
+   * @param parentId id of the parent of this inode
+   * @param name name of this inode
+   * @param directoryOptions options to create this directory
+   * @return the {@link InodeDirectory} representation
+   */
+  public static InodeDirectory create(long id, long parentId, String name,
+      CreateDirectoryOptions directoryOptions) {
+    PermissionStatus permissionStatus = new PermissionStatus(directoryOptions.getPermissionStatus())
+        .applyDirectoryUMask(MasterContext.getConf());
+    InodeDirectory inode = new InodeDirectory(id)
+        .setParentId(parentId)
+        .setName(name)
+        .setPermissionStatus(permissionStatus)
+        .setMountPoint(directoryOptions.isMountPoint());
     return inode;
   }
 
@@ -226,6 +270,7 @@ public final class InodeDirectory extends Inode<InodeDirectory> {
         .setGroupName(getGroupName())
         .setPermission(getPermission())
         .setMountPoint(isMountPoint())
+        .setDirectChildrenLoaded(isDirectChildrenLoaded())
         .build();
     return JournalEntry.newBuilder().setInodeDirectory(inodeDirectory).build();
   }

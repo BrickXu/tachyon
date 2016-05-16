@@ -19,9 +19,12 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 /**
  * Method options for loading the metadata.
+ *
+ * @deprecated since version 1.1 and will be removed in version 2.0
  */
 @PublicApi
 @NotThreadSafe
+@Deprecated
 public final class LoadMetadataOptions {
   private boolean mRecursive;
 
@@ -56,11 +59,27 @@ public final class LoadMetadataOptions {
     return this;
   }
 
-  /**
-   * @return the name : value pairs for all the fields
-   */
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (!(o instanceof LoadMetadataOptions)) {
+      return false;
+    }
+    LoadMetadataOptions that = (LoadMetadataOptions) o;
+    return Objects.equal(mRecursive, that.mRecursive);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(mRecursive);
+  }
+
   @Override
   public String toString() {
-    return Objects.toStringHelper(this).add("recursive", mRecursive).toString();
+    return Objects.toStringHelper(this)
+        .add("recursive", mRecursive)
+        .toString();
   }
 }

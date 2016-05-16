@@ -24,7 +24,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -36,6 +39,12 @@ import javax.annotation.concurrent.ThreadSafe;
 @ThreadSafe
 public abstract class UnderFileSystem {
   protected final Configuration mConfiguration;
+
+  /** The UFS {@link AlluxioURI} used to create this {@link UnderFileSystem}. */
+  protected final AlluxioURI mUri;
+
+  /** A map of property names to values. */
+  protected HashMap<String, String> mProperties = new HashMap<>();
 
   /**
    * This variable indicates whether the underFS actually provides storage. Most UnderFS should
@@ -180,22 +189,43 @@ public abstract class UnderFileSystem {
           || header.equals(Constants.HEADER_S3N) || header.equals(Constants.HEADER_OSS)
           || header.equals(Constants.HEADER_GCS)) {
         if (path.getPath().isEmpty()) {
-          return new Pair<String, String>(header + authority, AlluxioURI.SEPARATOR);
+          return new Pair<>(header + authority, AlluxioURI.SEPARATOR);
         } else {
-          return new Pair<String, String>(header + authority, path.getPath());
+          return new Pair<>(header + authority, path.getPath());
         }
       } else if (header.equals("file://")) {
-        return new Pair<String, String>(AlluxioURI.SEPARATOR, path.getPath());
+        return new Pair<>(AlluxioURI.SEPARATOR, path.getPath());
       }
     } else if (path.isPathAbsolute()) {
-      return new Pair<String, String>(AlluxioURI.SEPARATOR, path.getPath());
+      return new Pair<>(AlluxioURI.SEPARATOR, path.getPath());
     }
 
     return null;
   }
 
-  protected UnderFileSystem(Configuration configuration) {
+  /**
+   * Constructs an {@link UnderFileSystem}.
+   *
+   * @param uri the {@link AlluxioURI} used to create this UFS
+   * @param configuration the {@link Configuration} for this UFS
+   */
+  protected UnderFileSystem(AlluxioURI uri, Configuration configuration) {
+    Preconditions.checkNotNull(uri);
+    Preconditions.checkNotNull(configuration);
+    mUri = uri;
     mConfiguration = configuration;
+  }
+
+  /**
+   * Configures and updates the properties. For instance, this method can add new properties or
+   * modify existing properties specified through {@link #setProperties(Map)}.
+   *
+   * The default implementation is a no-op. This should be overridden if a subclass needs
+   * additional functionality.
+   * @throws IOException if an error occurs during configuration
+   */
+  public void configureProperties() throws IOException {
+    // Default implementation does not update any properties.
   }
 
   /**
@@ -336,6 +366,13 @@ public abstract class UnderFileSystem {
   public abstract long getModificationTimeMs(String path) throws IOException;
 
   /**
+   * @return the property map for this {@link UnderFileSystem}
+   */
+  public Map<String, String> getProperties() {
+    return Collections.unmodifiableMap(mProperties);
+  }
+
+  /**
    * Queries the under file system about the space of the indicated path (e.g., space left, space
    * used and etc).
    *
@@ -401,8 +438,8 @@ public abstract class UnderFileSystem {
     // Clean the path by creating a URI and turning it back to a string
     AlluxioURI uri = new AlluxioURI(path);
     path = uri.toString();
-    List<String> returnPaths = new ArrayList<String>();
-    Queue<String> pathsToProcess = new ArrayDeque<String>();
+    List<String> returnPaths = new ArrayList<>();
+    Queue<String> pathsToProcess = new ArrayDeque<>();
     // We call list initially, so we can return null if the path doesn't denote a directory
     String[] subpaths = list(path);
     if (subpaths == null) {
@@ -459,12 +496,49 @@ public abstract class UnderFileSystem {
   public abstract boolean rename(String src, String dst) throws IOException;
 
   /**
+   * Returns an {@link AlluxioURI} representation for the {@link UnderFileSystem} given a base
+   * UFS URI, and the Alluxio path from the base.
+   *
+   * The default implementation simply concatenates the path to the base URI. This should be
+   * overridden if a subclass needs alternate functionality.
+   *
+   * @param ufsBaseUri the base {@link AlluxioURI} in the UFS
+   * @param alluxioPath the path in Alluxio from the given base
+   * @return the UFS {@link AlluxioURI} representing the Alluxio path
+   */
+  public AlluxioURI resolveUri(AlluxioURI ufsBaseUri, String alluxioPath) {
+    return new AlluxioURI(ufsBaseUri.getScheme(), ufsBaseUri.getAuthority(),
+        PathUtils.concatPath(ufsBaseUri.getPath(), alluxioPath), ufsBaseUri.getQueryMap());
+  }
+
+  /**
    * Sets the configuration object for UnderFileSystem. The conf object is understood by the
    * concrete underfs's implementation.
    *
    * @param conf the configuration object accepted by ufs
    */
   public abstract void setConf(Object conf);
+
+  /**
+   * Sets the user and group of the given path. An empty implementation should be provided if
+   * unsupported.
+   *
+   * @param path path of the file
+   * @param user the new user to set, unchanged if null
+   * @param group the new group to set, unchanged if null
+   * @throws IOException if a non-Alluxio error occurs
+   */
+  public abstract void setOwner(String path, String user, String group) throws IOException;
+
+  /**
+   * Sets the properties for this {@link UnderFileSystem}.
+   *
+   * @param properties a {@link Map} of property names to values
+   */
+  public void setProperties(Map<String, String> properties) {
+    mProperties.clear();
+    mProperties.putAll(properties);
+  }
 
   /**
    * Changes posix file permission.
